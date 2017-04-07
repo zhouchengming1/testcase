@@ -119,17 +119,17 @@ repeat:
 		}
 		kthread_bind(td->task, i);
 
-		ret = sched_setscheduler(monitor_task, SCHED_FIFO, &param);
-		if (ret) {
-			ret = 1;
-			atomic_set(&threads_left, i);
-			goto error_out;
-		}
-
 		td->cpu = i;
 		td->work_num = test_work_num;
 		td->threads_done = &threads_done;
 		td->threads_left = &threads_left;
+
+		ret = sched_setscheduler(monitor_task, SCHED_FIFO, &param);
+		if (ret) {
+			ret = 1;
+			atomic_set(&threads_left, i + 1);
+			goto error_out;
+		}
 	}
 
 	test_begin_time = ktime_get();
@@ -165,7 +165,7 @@ repeat:
 
 error_out:
 	if (ret) {
-		printk("test failed\n");
+		printk("lockbench: test failed\n");
 		for (i = 0; i < test_threads; i++) {
 			td = &per_cpu(thread_datas, i);
 			if (IS_ERR(td->task))
