@@ -12,6 +12,7 @@
 #include <linux/kallsyms.h>
 #include <asm/delay.h>
 
+#include "lockbench_trace.h"
 struct thread_data {
 	int cpu;
 	struct task_struct *task;
@@ -49,7 +50,9 @@ static int thread_fn(void *arg)
 
 	while (1) {
 		spin_lock(&test_spinlock);
+		trace_lock(NULL);
 
+		trace_unlock(NULL);
 		spin_unlock(&test_spinlock);
 
 		if (++i == td->work_num)
