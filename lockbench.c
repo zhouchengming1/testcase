@@ -12,13 +12,13 @@
 #include <linux/kallsyms.h>
 #include <asm/delay.h>
 
-#include "lockbench_trace.h"
 struct thread_data {
 	int cpu;
 	struct task_struct *task;
 	unsigned long work_num;
 	struct completion *threads_done;
 	atomic_t *threads_left;
+	unsigned long lock_delay;
 };
 
 static struct spinlock test_spinlock;
@@ -43,21 +43,26 @@ struct task_struct *(*kthread_create_on_cpu_ptr)(int (*threadfn)(void *data),
 int (*sched_setscheduler_nocheck_ptr)(struct task_struct *p, int policy,
 		const struct sched_param *param);
 
+static unsigned long unlock_time = 0;
+
 static int thread_fn(void *arg)
 {
 	struct thread_data *td = (struct thread_data *)arg;
 	unsigned long i = 0;
+	unsigned long lock_delay = 0;
 
 	while (1) {
 		spin_lock(&test_spinlock);
-		trace_lock(NULL);
+		if (unlock_time)
+			lock_delay += ktime_to_ns(ktime_get()) - unlock_time;
 
-		trace_unlock(NULL);
+		unlock_time = ktime_to_ns(ktime_get());
 		spin_unlock(&test_spinlock);
 
 		if (++i == td->work_num)
 			break;
 	}
+	td->lock_delay = lock_delay;
 
 	if (atomic_dec_and_test(td->threads_left))
 		complete(td->threads_done);
@@ -76,6 +81,7 @@ static int monitor(void *unused)
 
 	unsigned long all_work_num = threads_num * threads_work_num;
 	unsigned long test_work_num, fact_all_work;
+	unsigned long lock_delay;
 
 repeat:
 	reinit_completion(&threads_done);
@@ -119,9 +125,15 @@ repeat:
 	/* wait for work done */
 	wait_for_completion(&threads_done);
 
+	unlock_time = 0;
+	lock_delay = 0;
+	for (i = 0; i < test_threads; i++)
+		lock_delay += td->lock_delay;
+
 	/* print this test result */
-	printk("lockbench: %d %lu %lu\n",
-			test_threads, test_work_num, fact_all_work);
+	printk("lockbench: %d %lu %lu delay: %ld\n",
+			test_threads, test_work_num, fact_all_work,
+			lock_delay/fact_all_work);
 
 	if (test_threads < threads_num)
 		goto repeat;
