@@ -21,6 +21,8 @@ struct thread_data {
 	struct completion *threads_done;
 	atomic_t *threads_left;
 	int threads_num;
+	unsigned long s_time;
+	unsigned long p_time;
 };
 
 static struct spinlock test_spinlock;
@@ -33,6 +35,9 @@ module_param(threads_work_num, int, 0);
 
 static int test_done = 0;
 module_param(test_done, int, S_IRUGO|S_IWUSR);
+
+static int c_time = 0;
+module_param(c_time, int, 0);
 
 static struct task_struct *monitor_task;
 
@@ -49,14 +54,16 @@ static int thread_fn(void *arg)
 {
 	struct thread_data *td = (struct thread_data *)arg;
 	unsigned long i = 0;
-	int threads_num = td->threads_num;
+	//int threads_num = td->threads_num;
 
 	while (1) {
 		spin_lock(&test_spinlock);
-		trace_lock(threads_num);
 
-		trace_unlock(threads_num);
+		ndelay(td->s_time);
+
 		spin_unlock(&test_spinlock);
+
+		ndelay(td->p_time);
 
 		if (++i == td->work_num)
 			break;
@@ -67,6 +74,8 @@ static int thread_fn(void *arg)
 	do_exit(0);
 	return 0;
 }
+
+static int s_tests_v[] = {20, 10, 5, 2, 1};
 
 static int monitor(void *unused)
 {
@@ -79,6 +88,11 @@ static int monitor(void *unused)
 
 	unsigned long all_work_num = threads_num * threads_work_num;
 	unsigned long test_work_num, fact_all_work;
+
+	int s_tests = 0;
+	unsigned long s_time = c_time * s_tests_v[s_tests];
+	int p_to_s = 1;
+	unsigned long p_time = s_time * 1000 / p_to_s;
 
 repeat:
 	reinit_completion(&threads_done);
@@ -106,6 +120,8 @@ repeat:
 		td->threads_done = &threads_done;
 		td->threads_left = &threads_left;
 		td->threads_num = test_threads;
+		td->s_time = s_time;
+		td->p_time = p_time;
 
 		ret = sched_setscheduler(monitor_task, SCHED_FIFO, &param);
 		if (ret) {
@@ -124,11 +140,30 @@ repeat:
 	wait_for_completion(&threads_done);
 
 	/* print this test result */
-	printk("lockbench: %d %lu %lu\n",
-			test_threads, test_work_num, fact_all_work);
+	printk("lockbench: %d %lu %lu %d %ld %ld\n",
+			test_threads, test_work_num, fact_all_work,
+			c_time, s_time, p_time);
 
 	if (test_threads < threads_num)
 		goto repeat;
+
+	/* from 1 to 31 */
+	if (p_to_s < 31) {
+		test_threads = 0;
+		p_to_s++;
+		p_time = s_time * 1000 / p_to_s;
+		goto repeat;
+	}
+
+	/* from 0.05 to 1 */
+	if (s_tests < 4) {
+		test_threads = 0;
+		s_tests++;
+		s_time = c_time * s_tests_v[s_tests];
+		p_to_s = 1;
+		p_time = s_time * 1000 / p_to_s;
+		goto repeat;
+	}
 
 error_out:
 	if (ret) {
