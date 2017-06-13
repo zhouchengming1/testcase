@@ -13,12 +13,14 @@
 #include <asm/delay.h>
 
 #include "lockbench_trace.h"
+
 struct thread_data {
 	int cpu;
 	struct task_struct *task;
 	unsigned long work_num;
 	struct completion *threads_done;
 	atomic_t *threads_left;
+	int threads_num;
 };
 
 static struct spinlock test_spinlock;
@@ -26,7 +28,7 @@ static struct spinlock test_spinlock;
 static int threads_num = 8;
 module_param(threads_num, int, 0);
 
-static int threads_work_num = 10000;
+static int threads_work_num = 500;
 module_param(threads_work_num, int, 0);
 
 static int test_done = 0;
@@ -47,12 +49,13 @@ static int thread_fn(void *arg)
 {
 	struct thread_data *td = (struct thread_data *)arg;
 	unsigned long i = 0;
+	int threads_num = td->threads_num;
 
 	while (1) {
 		spin_lock(&test_spinlock);
-		trace_lock(NULL);
+		trace_lock(threads_num);
 
-		trace_unlock(NULL);
+		trace_unlock(threads_num);
 		spin_unlock(&test_spinlock);
 
 		if (++i == td->work_num)
@@ -102,6 +105,7 @@ repeat:
 		td->work_num = test_work_num;
 		td->threads_done = &threads_done;
 		td->threads_left = &threads_left;
+		td->threads_num = test_threads;
 
 		ret = sched_setscheduler(monitor_task, SCHED_FIFO, &param);
 		if (ret) {

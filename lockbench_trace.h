@@ -7,19 +7,25 @@
 #include <linux/tracepoint.h>
 
 TRACE_EVENT(lock,
-	TP_PROTO(void *unused),
-	TP_ARGS(unused),
-	TP_STRUCT__entry(),
-	TP_fast_assign(),
-	TP_printk()
+	TP_PROTO(int threads),
+	TP_ARGS(threads),
+	TP_STRUCT__entry(
+	__field(int, threads)),
+	TP_fast_assign(
+	__entry->threads = threads),
+	TP_printk(
+	"threads=%d", __entry->threads)
 );
 
 TRACE_EVENT(unlock,
-	TP_PROTO(void *unused),
-	TP_ARGS(unused),
-	TP_STRUCT__entry(),
-	TP_fast_assign(),
-	TP_printk()
+	TP_PROTO(int threads),
+	TP_ARGS(threads),
+	TP_STRUCT__entry(
+	__field(int, threads)),
+	TP_fast_assign(
+	__entry->threads = threads),
+	TP_printk(
+	"threads=%d", __entry->threads)
 );
 
 #endif

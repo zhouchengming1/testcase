@@ -14,6 +14,10 @@
 
 #define CREATE_TRACE_POINTS
 #include "lockbench_trace.h"
+
+EXPORT_TRACEPOINT_SYMBOL(lock);
+EXPORT_TRACEPOINT_SYMBOL(unlock);
+
 static int lockbench_init(void)
 {
 	return 0;
